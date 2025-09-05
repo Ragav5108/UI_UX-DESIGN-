@@ -1,0 +1,311 @@
+import React, { useMemo, useState } from "react"; import { motion, AnimatePresence } from "framer-motion"; import { Search, Star, Clock, ArrowLeft, MapPin, ShoppingCart, Bike, Filter, Heart, Plus, Minus, Check, User, CreditCard, BadgePercent } from "lucide-react"; import { Button } from "@/components/ui/button"; import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"; import { Input } from "@/components/ui/input"; import { Badge } from "@/components/ui/badge"; import { Progress } from "@/components/ui/progress"; import { Sheet, SheetContent, SheetTrigger, SheetHeader, SheetTitle } from "@/components/ui/sheet"; import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+
+// --- Mock Data --- const CATEGORIES = [ { id: "all", name: "All" }, { id: "pizza", name: "Pizza" }, { id: "indian", name: "Indian" }, { id: "healthy", name: "Healthy" }, { id: "dessert", name: "Dessert" }, ];
+
+const RESTAURANTS = [ { id: "r1", name: "Urban Slice Pizza Co.", rating: 4.6, eta: 25, price: "₹₹", category: "pizza", promo: "Free delivery over ₹299", }, { id: "r2", name: "Masala Junction", rating: 4.4, eta: 30, price: "₹₹", category: "indian", promo: "10% off on combos", }, { id: "r3", name: "Greens & Grains", rating: 4.7, eta: 20, price: "₹₹₹", category: "healthy", promo: "20% off for first order", }, { id: "r4", name: "Sugar Cloud Bakery", rating: 4.5, eta: 18, price: "₹", category: "dessert", promo: "Buy 2 get 1 free", }, ];
+
+const MENUS = { r1: [ { id: "m1", name: "Margherita", desc: "Classic basil & mozzarella", price: 199, tag: "bestseller" }, { id: "m2", name: "Paneer Tikka", desc: "Smoky paneer, peppers", price: 279 }, { id: "m3", name: "Farmhouse", desc: "Loaded veggies", price: 259 }, ], r2: [ { id: "m4", name: "Butter Chicken", desc: "Creamy tomato gravy", price: 329, tag: "chef's special" }, { id: "m5", name: "Veg Thali", desc: "Seasonal platter", price: 249 }, { id: "m6", name: "Chicken Biryani", desc: "Aromatic long-grain", price: 289, tag: "bestseller" }, ], r3: [ { id: "m7", name: "Quinoa Bowl", desc: "Avocado, chickpeas", price: 299 }, { id: "m8", name: "Grilled Chicken Salad", desc: "Protein-packed", price: 319 }, { id: "m9", name: "Green Smoothie", desc: "Spinach, apple, ginger", price: 149 }, ], r4: [ { id: "m10", name: "Chocolate Cupcake", desc: "Dark cocoa", price: 99 }, { id: "m11", name: "Cheesecake Slice", desc: "NY style", price: 159, tag: "bestseller" }, { id: "m12", name: "Gulab Jamun Jar", desc: "Warm & syrupy", price: 129 }, ], };
+
+// --- Helpers --- const currency = (n) => ₹${n.toFixed(0)};
+
+function useCart() { const [items, setItems] = useState([]); // {id, name, price, qty} const add = (item) => setItems((prev) => { const found = prev.find((p) => p.id === item.id); if (found) return prev.map((p) => (p.id === item.id ? { ...p, qty: p.qty + 1 } : p)); return [...prev, { ...item, qty: 1 }]; }); const dec = (id) => setItems((prev) => prev.map((p) => (p.id === id ? { ...p, qty: Math.max(0, p.qty - 1) } : p)).filter((p) => p.qty > 0)); const clear = () => setItems([]); const total = useMemo(() => items.reduce((s, i) => s + i.price * i.qty, 0), [items]); const count = useMemo(() => items.reduce((s, i) => s + i.qty, 0), [items]); return { items, add, dec, clear, total, count }; }
+
+export default function App() { const [screen, setScreen] = useState("home"); // home | list | menu | checkout | tracking | profile const [query, setQuery] = useState(""); const [cat, setCat] = useState("all"); const [activeRestaurant, setActiveRestaurant] = useState(null); const cart = useCart(); const [address, setAddress] = useState("221B Baker Street, Chennai"); const [stage, setStage] = useState(25); // tracking progress
+
+const filteredRestaurants = useMemo(() => { return RESTAURANTS.filter((r) => (cat === "all" || r.category === cat) && r.name.toLowerCase().includes(query.toLowerCase()) ); }, [cat, query]);
+
+const openMenu = (r) => { setActiveRestaurant(r); setScreen("menu"); };
+
+// --- Layout --- return ( <div className="min-h-screen bg-gradient-to-b from-white to-stone-50 text-stone-900"> <TopBar address={address} onBack={screen !== "home" ? () => setScreen("home") : null} />
+
+<main className="mx-auto max-w-6xl p-4 sm:p-6">
+    <AnimatePresence mode="wait">
+      {screen === "home" && (
+        <Home
+          key="home"
+          query={query}
+          setQuery={setQuery}
+          cat={cat}
+          setCat={setCat}
+          list={filteredRestaurants}
+          onOpen={(r) => {
+            setScreen("list");
+          }}
+          onOpenMenu={openMenu}
+          onOpenList={() => setScreen("list")}
+          onOpenProfile={() => setScreen("profile")}
+        />
+      )}
+
+      {screen === "list" && (
+        <RestaurantList
+          key="list"
+          query={query}
+          setQuery={setQuery}
+          cat={cat}
+          setCat={setCat}
+          list={filteredRestaurants}
+          onOpenMenu={openMenu}
+        />
+      )}
+
+      {screen === "menu" && activeRestaurant && (
+        <MenuScreen
+          key="menu"
+          restaurant={activeRestaurant}
+          items={MENUS[activeRestaurant.id] || []}
+          onBack={() => setScreen("list")}
+          onCheckout={() => setScreen("checkout")}
+          cart={cart}
+        />
+      )}
+
+      {screen === "checkout" && (
+        <Checkout
+          key="checkout"
+          cart={cart}
+          address={address}
+          setAddress={setAddress}
+          onPlace={() => {
+            cart.clear();
+            setStage(35);
+            setScreen("tracking");
+          }}
+        />
+      )}
+
+      {screen === "tracking" && (
+        <Tracking key="tracking" stage={stage} setStage={setStage} onHome={() => setScreen("home")} />
+      )}
+
+      {screen === "profile" && <Profile key="profile" onBack={() => setScreen("home")} />}
+    </AnimatePresence>
+  </main>
+
+  <FloatingCart cart={cart} onCheckout={() => (cart.items.length ? setScreen("checkout") : null)} />
+
+  <FooterNav
+    onHome={() => setScreen("home")}
+    onExplore={() => setScreen("list")}
+    onProfile={() => setScreen("profile")}
+  />
+</div>
+
+); }
+
+// --- Components --- function TopBar({ address, onBack }) { return ( <div className="sticky top-0 z-30 w-full bg-white/70 backdrop-blur border-b"> <div className="mx-auto max-w-6xl flex items-center gap-3 p-3"> {onBack ? ( <Button size="icon" variant="ghost" onClick={onBack} className="rounded-2xl"> <ArrowLeft className="h-5 w-5" /> </Button> ) : ( <Button size="icon" variant="ghost" className="rounded-2xl"> <Bike className="h-5 w-5" /> </Button> )} <div className="flex items-center gap-2 text-sm text-stone-700"> <MapPin className="h-4 w-4" /> {address} </div> <div className="ml-auto flex items-center gap-2"> <Badge variant="secondary" className="rounded-xl"> <Clock className="h-3.5 w-3.5 mr-1" /> 20–30 min </Badge> <Badge variant="outline" className="rounded-xl hidden sm:flex"> <BadgePercent className="h-3.5 w-3.5 mr-1" /> Offers near you </Badge> </div> </div> </div> ); }
+
+function Home({ query, setQuery, cat, setCat, list, onOpenMenu, onOpenList, onOpenProfile }) { return ( <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}> <div className="mb-4 flex items-center gap-2"> <div className="relative flex-1"> <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" /> <Input placeholder="Search restaurants or dishes" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9 rounded-2xl" /> </div> <Button variant="secondary" onClick={onOpenList} className="rounded-2xl"> <Filter className="h-4 w-4 mr-2" /> Explore </Button> <Button variant="outline" onClick={onOpenProfile} className="rounded-2xl"> <User className="h-4 w-4 mr-2" /> Profile </Button> </div>
+
+<Tabs value={cat} onValueChange={setCat} className="mb-4">
+    <TabsList className="rounded-2xl flex-wrap gap-2">
+      {CATEGORIES.map((c) => (
+        <TabsTrigger key={c.id} value={c.id} className="rounded-2xl">
+          {c.name}
+        </TabsTrigger>
+      ))}
+    </TabsList>
+  </Tabs>
+
+  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+    {list.map((r) => (
+      <Card key={r.id} className="rounded-2xl shadow-sm hover:shadow-md transition">
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>{r.name}</span>
+            <Badge variant="secondary" className="rounded-xl">
+              <Star className="h-3.5 w-3.5 mr-1" /> {r.rating}
+            </Badge>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-stone-600 space-y-3">
+          <div className="flex items-center gap-3">
+            <Badge variant="outline" className="rounded-xl">
+              <Clock className="h-3.5 w-3.5 mr-1" /> {r.eta} min
+            </Badge>
+            <Badge variant="outline" className="rounded-xl">{r.price}</Badge>
+            <Badge className="rounded-xl" variant="secondary">{r.category}</Badge>
+          </div>
+          <div className="text-stone-700">{r.promo}</div>
+          <div className="flex justify-between pt-2">
+            <Button size="sm" className="rounded-2xl" onClick={() => onOpenMenu(r)}>
+              View Menu
+            </Button>
+            <Button variant="ghost" size="sm" className="rounded-2xl">
+              <Heart className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+</motion.section>
+
+); }
+
+function RestaurantList({ query, setQuery, cat, setCat, list, onOpenMenu }) { return ( <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}> <div className="mb-4 flex items-center gap-2"> <div className="relative flex-1"> <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" /> <Input placeholder="Search restaurants or dishes" value={query} onChange={(e) => setQuery(e.target.value)} className="pl-9 rounded-2xl" /> </div> <Tabs value={cat} onValueChange={setCat}> <TabsList className="rounded-2xl"> {CATEGORIES.map((c) => ( <TabsTrigger key={c.id} value={c.id} className="rounded-2xl text-xs"> {c.name} </TabsTrigger> ))} </TabsList> </Tabs> </div>
+
+<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    {list.map((r) => (
+      <Card key={r.id} className="rounded-2xl hover:shadow-md transition">
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center justify-between text-base">
+            <span>{r.name}</span>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="rounded-xl">
+                <Star className="h-3.5 w-3.5 mr-1" /> {r.rating}
+              </Badge>
+              <Badge variant="outline" className="rounded-xl">
+                <Clock className="h-3.5 w-3.5 mr-1" /> {r.eta}m
+              </Badge>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-stone-600 space-y-3">
+          <div className="text-stone-700">{r.promo}</div>
+          <div className="flex justify-between">
+            <Badge variant="outline" className="rounded-xl">{r.price}</Badge>
+            <Button size="sm" className="rounded-2xl" onClick={() => onOpenMenu(r)}>
+              View Menu
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+</motion.section>
+
+); }
+
+function MenuScreen({ restaurant, items, onBack, onCheckout, cart }) { return ( <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}> <div className="flex items-center gap-2 mb-4"> <Button variant="ghost" size="icon" onClick={onBack} className="rounded-2xl"> <ArrowLeft className="h-5 w-5" /> </Button> <h2 className="text-xl font-semibold">{restaurant.name}</h2> <Badge variant="secondary" className="ml-2 rounded-xl"> <Star className="h-3.5 w-3.5 mr-1" /> {restaurant.rating} </Badge> <Badge variant="outline" className="ml-auto rounded-xl"> <Clock className="h-3.5 w-3.5 mr-1" /> {restaurant.eta}m </Badge> </div>
+
+<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+    {items.map((m) => (
+      <Card key={m.id} className="rounded-2xl">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2">
+            {m.name}
+            {m.tag && <Badge className="rounded-xl" variant="secondary">{m.tag}</Badge>}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-stone-600">
+          <p>{m.desc}</p>
+          <div className="mt-3 flex items-center justify-between">
+            <span className="font-semibold text-stone-900">{currency(m.price)}</span>
+            <div className="flex items-center gap-2">
+              <Button size="icon" variant="outline" className="rounded-2xl" onClick={() => cart.dec(m.id)}>
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Button size="sm" className="rounded-2xl" onClick={() => cart.add({ id: m.id, name: m.name, price: m.price })}>
+                <Plus className="h-4 w-4 mr-1" /> Add
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    ))}
+  </div>
+
+  <div className="mt-6 flex justify-end">
+    <Button className="rounded-2xl" onClick={onCheckout}>
+      <ShoppingCart className="h-4 w-4 mr-2" /> Go to Checkout
+    </Button>
+  </div>
+</motion.section>
+
+); }
+
+function Checkout({ cart, address, setAddress, onPlace }) { const delivery = cart.total > 0 ? 29 : 0; const taxes = Math.round(cart.total * 0.05); const grand = cart.total + delivery + taxes;
+
+return ( <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}> <h2 className="text-xl font-semibold mb-4">Checkout</h2>
+
+<div className="grid gap-4 lg:grid-cols-3">
+    <Card className="rounded-2xl lg:col-span-2">
+      <CardHeader>
+        <CardTitle>Order Summary</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {cart.items.length === 0 && <div className="text-stone-500">Your cart is empty.</div>}
+        {cart.items.map((i) => (
+          <div key={i.id} className="flex items-center justify-between">
+            <div className="text-stone-700">{i.name} × {i.qty}</div>
+            <div className="flex items-center gap-2">
+              <Button size="icon" variant="outline" className="rounded-2xl" onClick={() => cart.dec(i.id)}>
+                <Minus className="h-4 w-4" />
+              </Button>
+              <Button size="icon" className="rounded-2xl" onClick={() => cart.add(i)}>
+                <Plus className="h-4 w-4" />
+              </Button>
+              <div className="w-16 text-right font-medium">{currency(i.price * i.qty)}</div>
+            </div>
+          </div>
+        ))}
+      </CardContent>
+    </Card>
+
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Delivery</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="text-sm">Address</div>
+        <Input value={address} onChange={(e) => setAddress(e.target.value)} className="rounded-2xl" />
+        <div className="text-sm">Payment</div>
+        <Tabs defaultValue="cod">
+          <TabsList className="rounded-2xl w-full">
+            <TabsTrigger value="cod" className="rounded-2xl text-xs">Cash</TabsTrigger>
+            <TabsTrigger value="card" className="rounded-2xl text-xs">Card</TabsTrigger>
+            <TabsTrigger value="upi" className="rounded-2xl text-xs">UPI</TabsTrigger>
+          </TabsList>
+        </Tabs>
+        <div className="border-t pt-3 text-sm space-y-1">
+          <div className="flex justify-between"><span>Items</span><span>{currency(cart.total)}</span></div>
+          <div className="flex justify-between"><span>Delivery</span><span>{currency(delivery)}</span></div>
+          <div className="flex justify-between"><span>Taxes</span><span>{currency(taxes)}</span></div>
+          <div className="flex justify-between font-semibold text-stone-900"><span>Total</span><span>{currency(grand)}</span></div>
+        </div>
+        <Button className="w-full rounded-2xl" onClick={onPlace} disabled={!cart.items.length}>
+          <CreditCard className="h-4 w-4 mr-2" /> Place Order
+        </Button>
+      </CardContent>
+    </Card>
+  </div>
+</motion.section>
+
+); }
+
+function Tracking({ stage, setStage, onHome }) { const steps = [ { label: "Order placed", val: 20 }, { label: "Restaurant accepted", val: 35 }, { label: "Preparing", val: 55 }, { label: "Picked up", val: 75 }, { label: "Out for delivery", val: 90 }, { label: "Delivered", val: 100 }, ];
+
+const next = () => { const i = steps.findIndex((s) => s.val === stage); const nv = steps[Math.min(steps.length - 1, i + 1)].val; setStage(nv); };
+
+return ( <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}> <h2 className="text-xl font-semibold mb-4">Order Tracking</h2> <Card className="rounded-2xl"> <CardContent className="space-y-4 pt-6"> <div className="flex items-center gap-2 text-stone-700"> <Bike className="h-4 w-4" /> Rider is en route </div> <Progress value={stage} className="h-3 rounded-full" /> <div className="flex flex-wrap gap-2"> {steps.map((s) => ( <Badge key={s.val} variant={stage >= s.val ? "default" : "secondary"} className="rounded-xl"> <Check className="h-3.5 w-3.5 mr-1" /> {s.label} </Badge> ))} </div> <div className="flex justify-end gap-2"> <Button variant="outline" className="rounded-2xl" onClick={onHome}>Back to Home</Button> <Button className="rounded-2xl" onClick={next}>Advance Stage</Button> </div> </CardContent> </Card> </motion.section> ); }
+
+function Profile({ onBack }) { return ( <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }}> <div className="flex items-center gap-2 mb-4"> <Button variant="ghost" size="icon" onClick={onBack} className="rounded-2xl"> <ArrowLeft className="h-5 w-5" /> </Button> <h2 className="text-xl font-semibold">Your Profile</h2> </div>
+
+<div className="grid gap-4 sm:grid-cols-2">
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Account</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm text-stone-600">
+        <div>Name: Demo User</div>
+        <div>Phone: +91-90000 00000</div>
+        <div>Email: demo@example.com</div>
+      </CardContent>
+    </Card>
+    <Card className="rounded-2xl">
+      <CardHeader>
+        <CardTitle>Preferences</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm text-stone-600">
+        <div>Veg only: Off</div>
+        <div>Allergies: Peanuts</div>
+        <div>Theme: System</div>
+      </CardContent>
+    </Card>
+  </div>
+</motion.section>
+
+); }
+
+function FloatingCart({ cart, onCheckout }) { return ( <Sheet> <SheetTrigger asChild> <Button className="fixed bottom-20 right-4 sm:right-8 rounded-2xl shadow-lg"> <ShoppingCart className="h-4 w-4 mr-2" /> Cart ({cart.count}) · {currency(cart.total)} </Button> </SheetTrigger> <SheetContent className="w-[92vw] sm:max-w-md"> <SheetHeader> <SheetTitle>Your Cart</SheetTitle> </SheetHeader> <div className="mt-4 space-y-3"> {cart.items.length === 0 && <div className="text-stone-500">Empty cart</div>} {cart.items.map((i) => ( <div key={i.id} className="flex items-center justify-between"> <div className="text-stone-700">{i.name}</div> <div className="flex items-center gap-2"> <Button size="icon" variant="outline" className="rounded-2xl" onClick={() => cart.dec(i.id)}> <Minus className="h-4 w-4" /> </Button> <span className="w-5 text-center">{i.qty}</span> <Button size="icon" className="rounded-2xl" onClick={() => cart.add(i)}> <Plus className="h-4 w-4" /> </Button> <div className="w-16 text-right font-medium">{currency(i.price * i.qty)}</div> </div> </div> ))} </div> <div className="mt-4 border-t pt-3 text-sm space-y-1"> <div className="fl
